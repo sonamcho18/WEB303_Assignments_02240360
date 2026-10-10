@@ -1,0 +1,106 @@
+# Campus Events — complete system.
+# Start everything with:   docker compose up --build
+#
+# All values come from the .env file next to this file.
+#
+#   Postman ──REST──► gateway ──gRPC──► registration-service ──gRPC──► event-service
+#                        │                       │                          │
+#                        └──────gRPC─────────────┼──────────────────────────┘
+#                                                ▼                          ▼
+#                                         registration-db               event-db
+
+services:
+  # ---------- Databases: one per service, never shared ----------
+  event-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${EVENT_DB_NAME}
+      POSTGRES_USER: ${EVENT_DB_USER}
+      POSTGRES_PASSWORD: ${EVENT_DB_PASSWORD}
+    volumes:
+      - event-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVENT_DB_USER} -d ${EVENT_DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  registration-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${REGISTRATION_DB_NAME}
+      POSTGRES_USER: ${REGISTRATION_DB_USER}
+      POSTGRES_PASSWORD: ${REGISTRATION_DB_PASSWORD}
+    volumes:
+      - registration-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${REGISTRATION_DB_USER} -d ${REGISTRATION_DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------- Service B: Events ----------
+  event-service:
+    build:
+      context: .
+      dockerfile: event-service/Dockerfile
+    environment:
+      GRPC_PORT: ${EVENT_SERVICE_PORT}
+      DB_HOST: event-db
+      DB_PORT: "5432"
+      DB_NAME: ${EVENT_DB_NAME}
+      DB_USER: ${EVENT_DB_USER}
+      DB_PASSWORD: ${EVENT_DB_PASSWORD}
+    depends_on:
+      event-db:
+        condition: service_healthy
+    restart: on-failure
+
+  # ---------- Service A: Registrations ----------
+  registration-service:
+    build:
+      context: .
+      dockerfile: registration-service/Dockerfile
+    environment:
+      GRPC_PORT: ${REGISTRATION_SERVICE_PORT}
+      DB_HOST: registration-db
+      DB_PORT: "5432"
+      DB_NAME: ${REGISTRATION_DB_NAME}
+      DB_USER: ${REGISTRATION_DB_USER}
+      DB_PASSWORD: ${REGISTRATION_DB_PASSWORD}
+      EVENT_SERVICE_ADDR: event-service:${EVENT_SERVICE_PORT}
+      # Resilience settings for calls to the Event Service
+      EVENT_CALL_TIMEOUT: ${EVENT_CALL_TIMEOUT}
+      EVENT_MAX_RETRIES: ${EVENT_MAX_RETRIES}
+      EVENT_RETRY_BACKOFF: ${EVENT_RETRY_BACKOFF}
+      CB_FAILURE_THRESHOLD: ${CB_FAILURE_THRESHOLD}
+      CB_OPEN_TIMEOUT: ${CB_OPEN_TIMEOUT}
+    depends_on:
+      registration-db:
+        condition: service_healthy
+      # Only waits for the container to start: if the Event Service goes
+      # down later, the resilience patterns take over.
+      event-service:
+        condition: service_started
+    restart: on-failure
+
+  # ---------- API Gateway: the only port exposed to the host ----------
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      HTTP_PORT: ${GATEWAY_PORT}
+      EVENT_SERVICE_ADDR: event-service:${EVENT_SERVICE_PORT}
+      REGISTRATION_SERVICE_ADDR: registration-service:${REGISTRATION_SERVICE_PORT}
+      REQUEST_TIMEOUT: ${GATEWAY_REQUEST_TIMEOUT}
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+    depends_on:
+      - event-service
+      - registration-service
+    restart: on-failure
+
+volumes:
+  event-db-data:
+  registration-db-data:

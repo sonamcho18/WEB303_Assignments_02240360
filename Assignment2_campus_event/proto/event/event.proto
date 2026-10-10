@@ -1,0 +1,68 @@
+// event.proto
+//
+// Contract for the Event Service (Service B in the assignment brief).
+// The Event Service owns the "Event" resource and its own database
+// (event_db). It is the independent resource: events can exist without
+// registrations, but a registration always needs an event.
+syntax = "proto3";
+
+package event.v1;
+
+option go_package = "campus-events/gen/eventpb;eventpb";
+
+// EventService exposes full CRUD for campus events.
+service EventService {
+  rpc CreateEvent(CreateEventRequest) returns (Event);
+  rpc GetEvent(GetEventRequest) returns (Event);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc UpdateEvent(UpdateEventRequest) returns (Event);
+  rpc DeleteEvent(DeleteEventRequest) returns (DeleteEventResponse);
+}
+
+// Event is a campus activity that students can register for,
+// e.g. a hackathon, a football match or a guest lecture.
+message Event {
+  int64 id = 1;
+  string title = 2;
+  string venue = 3;
+  string event_date = 4; // YYYY-MM-DD
+  int32 capacity = 5;    // maximum number of registrations allowed
+  string organizer = 6;  // club or department running the event
+  string created_at = 7; // RFC 3339 timestamp, set by the server
+}
+
+message CreateEventRequest {
+  string title = 1;
+  string venue = 2;
+  string event_date = 3;
+  int32 capacity = 4;
+  string organizer = 5;
+}
+
+message GetEventRequest {
+  int64 id = 1;
+}
+
+message ListEventsRequest {}
+
+message ListEventsResponse {
+  repeated Event events = 1;
+}
+
+// UpdateEventRequest replaces every editable field of an event (PUT semantics).
+message UpdateEventRequest {
+  int64 id = 1;
+  string title = 2;
+  string venue = 3;
+  string event_date = 4;
+  int32 capacity = 5;
+  string organizer = 6;
+}
+
+message DeleteEventRequest {
+  int64 id = 1;
+}
+
+message DeleteEventResponse {
+  string message = 1;
+}

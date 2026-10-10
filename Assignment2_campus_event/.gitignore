@@ -1,0 +1,6 @@
+# compiled binaries
+/bin/
+event-service/event-service
+registration-service/registration-service
+gateway/gateway
+*.exe

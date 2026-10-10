@@ -1,0 +1,82 @@
+// registration.proto
+//
+// Contract for the Registration Service (Service A in the assignment brief).
+// The Registration Service owns the "Registration" resource and its own
+// database (registration_db). A registration depends on an event, so this
+// service calls the Event Service over gRPC to check that the event exists
+// (and has free places) before it stores anything.
+syntax = "proto3";
+
+package registration.v1;
+
+option go_package = "campus-events/gen/registrationpb;registrationpb";
+
+// RegistrationService exposes full CRUD for event registrations.
+service RegistrationService {
+  rpc CreateRegistration(CreateRegistrationRequest) returns (Registration);
+  rpc GetRegistration(GetRegistrationRequest) returns (Registration);
+  rpc ListRegistrations(ListRegistrationsRequest) returns (ListRegistrationsResponse);
+  rpc UpdateRegistration(UpdateRegistrationRequest) returns (Registration);
+  rpc DeleteRegistration(DeleteRegistrationRequest) returns (DeleteRegistrationResponse);
+}
+
+// EventSummary is a read-only copy of a few event fields, fetched live
+// from the Event Service. It is never stored in registration_db.
+message EventSummary {
+  string title = 1;
+  string venue = 2;
+  string event_date = 3;
+}
+
+// Registration records that one student signed up for one event.
+message Registration {
+  int64 id = 1;
+  int64 event_id = 2;
+  string student_name = 3;
+  string student_id = 4; // 8-digit student number, e.g. 02240365
+  string email = 5;
+  string created_at = 6;
+
+  // Filled in on Get/Create by calling the Event Service.
+  EventSummary event = 7;
+  // Fallback message: set when the Event Service could not be reached,
+  // so the registration is still returned without the event details.
+  string event_lookup_error = 8;
+}
+
+message CreateRegistrationRequest {
+  int64 event_id = 1;
+  string student_name = 2;
+  string student_id = 3;
+  string email = 4;
+}
+
+message GetRegistrationRequest {
+  int64 id = 1;
+}
+
+// ListRegistrationsRequest optionally filters by event (0 = all events).
+message ListRegistrationsRequest {
+  int64 event_id = 1;
+}
+
+message ListRegistrationsResponse {
+  repeated Registration registrations = 1;
+}
+
+// UpdateRegistrationRequest changes the student's contact details.
+// The event and student number are fixed once a registration exists;
+// to move to another event, delete and register again.
+message UpdateRegistrationRequest {
+  int64 id = 1;
+  string student_name = 2;
+  string email = 3;
+}
+
+message DeleteRegistrationRequest {
+  int64 id = 1;
+}
+
+message DeleteRegistrationResponse {
+  string message = 1;
+}

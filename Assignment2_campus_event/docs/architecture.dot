@@ -1,0 +1,22 @@
+// Architecture diagram source. Render with:  dot -Tpng -Gdpi=200 architecture.dot -o architecture.png
+digraph G {
+  rankdir=LR; bgcolor="white"; pad=0.3; nodesep=0.7; ranksep=1.1; newrank=true;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=12, color="#555555", fillcolor="white", margin="0.25,0.12"];
+  edge [fontname="Helvetica", fontsize=10, color="#777777", fontcolor="#555555"];
+
+  postman  [label=<<b>Postman</b><br/><font point-size="10" color="#666666">test client</font>>];
+  gateway  [label=<<b>API Gateway</b><br/><font point-size="10" color="#666666">Go · REST :8080 in, gRPC out</font>>, fillcolor="#EEF3FB"];
+  reg      [label=<<b>Registration Service</b><br/><font point-size="10" color="#666666">Service A · Go · gRPC :50052</font>>, fillcolor="#EEF8F1"];
+  evt      [label=<<b>Event Service</b><br/><font point-size="10" color="#666666">Service B · Go · gRPC :50051</font>>, fillcolor="#FDF4E7"];
+  regdb    [label="registration_db\n(PostgreSQL)", shape=cylinder, fillcolor="#F2F2F2", fontsize=11];
+  evtdb    [label="event_db\n(PostgreSQL)", shape=cylinder, fillcolor="#F2F2F2", fontsize=11];
+
+  postman -> gateway [label="REST / JSON"];
+  gateway -> reg     [label="gRPC"];
+  reg -> evt         [label=<<font color="#1F5FBF">gRPC GetEvent<br/>timeout · retry + backoff<br/>circuit breaker</font>>, color="#1F5FBF", penwidth=2.2];
+  gateway -> evt     [label="gRPC (event CRUD)", constraint=false, style=dashed];
+  reg -> regdb      ;
+  evt -> evtdb      ;
+  {rank=same; reg; regdb}
+  {rank=same; evt; evtdb}
+}
